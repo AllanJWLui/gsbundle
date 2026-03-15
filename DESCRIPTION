@@ -1,0 +1,26 @@
+Package: gsbundle
+Type: Package
+Title: Gene Set Retrieval and Gene ID Conversion Utilities
+Version: 0.1.0
+Authors@R: person("Wubing", "Zhang", role = c("aut", "cre"),
+    email = "example@example.com")
+Description: Provides functions for gene ID conversion across multiple
+    formats and organisms, and retrieval of gene set annotations from
+    KEGG, Reactome, Gene Ontology, MSigDB, and CORUM databases.
+    Annotation data is cached locally in the user cache directory.
+License: GPL-3
+Encoding: UTF-8
+RoxygenNote: 7.3.2
+Imports:
+    dplyr,
+    jsonlite,
+    methods,
+    stringr,
+    utils
+Suggests:
+    biomaRt,
+    clusterProfiler,
+    dbscan,
+    DBI,
+    httr,
+    RSQLite
