@@ -224,9 +224,9 @@ getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
 
   ncbi_ann = matrix(unlist(apply(ncbi_ann, 1, function(x){
     tmp = unlist(strsplit(x[3], "[|]"))
-    return(as.vector(rbind(x[1], x[2], tmp, x[7], x[8], x[6])))
-  })) , ncol=6, byrow = TRUE)
-  colnames(ncbi_ann) = c("entrez", "symbol", "synonyms", "hgnc", "ensembl", "fullname")
+    return(as.vector(rbind(x[1], x[2], tmp, x[7], x[8], x[6], x[5])))
+  })) , ncol=7, byrow = TRUE)
+  colnames(ncbi_ann) = c("entrez", "symbol", "synonyms", "hgnc", "ensembl", "fullname", "type_of_gene")
   ncbi_ann[,1] = gsub(" ", "", ncbi_ann[,1])
 
   #### HGNC gene annotation ####
@@ -309,7 +309,7 @@ getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
   # ensembl_ann$hgnc = gsub("HGNC:", "", ensembl_ann$hgnc)
 
   #### Merge all annotations ####
-  geneann = merge(ncbi_ann[, c("ensembl","entrez","symbol","synonyms")],
+  geneann = merge(ncbi_ann[, c("ensembl","entrez","symbol","synonyms","type_of_gene")],
                   ensembl_ann[,c("ensembl","entrez")],
                   by = c("ensembl","entrez"), all = TRUE)
   geneann$entrez = gsub(" ", "", geneann$entrez)
