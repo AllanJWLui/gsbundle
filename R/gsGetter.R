@@ -161,35 +161,69 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
   }
   if("CORUM" %in% type){ ## Process genesets from CORUM
     message(format(Sys.time(), " Downloading genesets from CORUM ..."))
-    corum_release <- if (!is.null(release)) paste0("releases/", release) else "releases/current"
-    base_url = paste0("https://mips.helmholtz-muenchen.de/corum/download/", corum_release, "/allComplexes.txt.zip")
-    corum_version <- .get_last_modified(base_url)
-    locfname = file.path(.gsbundle_cache(), "allComplexes.txt.zip")
-    download.file(base_url, locfname, quiet = TRUE)
-    corum <- read.table(unz(locfname, "allComplexes.txt"), sep = "\t",
-                        header = TRUE, quote = "", stringsAsFactors = FALSE)
-    file.remove(locfname)
-    if(organism=="hsa"){
-      corum = corum[corum$Organism=="Human", ]
-    }else if(organism=="mmu"){
-      corum = corum[corum$Organism=="Mouse", ]
+    api_base <- "https://mips.helmholtz-muenchen.de/fastapi-corum"
+    locfname  <- file.path(.gsbundle_cache(), "allComplexes_current.txt")
+
+    if (!is.null(release)) {
+      ## Archived release — server returns a zip containing the txt
+      corum_version <- as.character(release)
+      zip_tmp <- file.path(.gsbundle_cache(),
+                           paste0("corum_v", corum_version, ".zip"))
+      download.file(
+        paste0(api_base, "/public/file/download_archived_file?version=", corum_version),
+        zip_tmp, quiet = TRUE, mode = "wb"
+      )
+      zip_entry <- grep("allComplexes|complete",
+                        unzip(zip_tmp, list = TRUE)$Name,
+                        value = TRUE, ignore.case = TRUE)[1]
+      corum <- read.table(unz(zip_tmp, zip_entry), sep = "\t",
+                          header = TRUE, quote = "", stringsAsFactors = FALSE,
+                          fill = TRUE)
+      suppressWarnings(try(file.remove(zip_tmp), silent = TRUE))
+    } else {
+      ## Current release — server returns the txt file directly
+      ver_json <- jsonlite::fromJSON(
+        paste(readLines(url(paste0(api_base, "/public/releases/current")),
+                        warn = FALSE), collapse = "")
+      )
+      corum_version <- ver_json$version
+      download.file(
+        paste0(api_base,
+               "/public/file/download_current_file?file_id=complete&file_format=txt"),
+        locfname, quiet = TRUE
+      )
+      corum <- read.table(locfname, sep = "\t", header = TRUE, quote = "",
+                          stringsAsFactors = FALSE, fill = TRUE)
+      suppressWarnings(try(file.remove(locfname), silent = TRUE))
     }
-    genes = strsplit(corum$subunits.Gene.name., ";")
-    nset = unlist(lapply(genes, length))
-    gene2corum = data.frame(EntrezID = unlist(genes),
-                            ComplexID = rep(corum$ComplexID, nset),
-                            ComplexName = rep(corum$ComplexName, nset))
-    gene2corum$ComplexID = paste0("CORUM_", gene2corum$ComplexID)
-    gene2corum$EntrezID = TransGeneID(gene2corum$EntrezID, "Symbol",
-                                      "Entrez", organism = organism)
-    gene2corum = na.omit(gene2corum)
-    locfname = file.path(.gsbundle_cache(),
+
+    ## Column names changed in CORUM v5 (snake_case) vs v4 (PascalCase)
+    org_col  <- if ("organism"           %in% colnames(corum)) "organism"           else "Organism"
+    gene_col <- if ("subunits_gene_name" %in% colnames(corum)) "subunits_gene_name" else "subunits.Gene.name."
+    id_col   <- if ("complex_id"         %in% colnames(corum)) "complex_id"         else "ComplexID"
+    name_col <- if ("complex_name"       %in% colnames(corum)) "complex_name"       else "ComplexName"
+
+    org_val <- if (organism == "hsa") "Human" else if (organism == "mmu") "Mouse" else
+      stop("Unsupported organism for CORUM: ", organism)
+    corum <- corum[corum[[org_col]] == org_val, ]
+
+    genes <- strsplit(corum[[gene_col]], ";")
+    nset  <- lengths(genes)
+    gene2corum <- data.frame(
+      EntrezID    = unlist(genes),
+      ComplexID   = paste0("CORUM_", rep(corum[[id_col]],   nset)),
+      ComplexName = rep(corum[[name_col]], nset)
+    )
+    gene2corum$EntrezID <- TransGeneID(gene2corum$EntrezID, "Symbol",
+                                       "Entrez", organism = organism)
+    gene2corum <- na.omit(gene2corum)
+    rdsname <- file.path(.gsbundle_cache(),
                          paste0("corum.all.entrez.", organism, ".rds"))
-    saveRDS(gene2corum, locfname)
+    saveRDS(gene2corum, rdsname)
     .save_db_meta("corum", organism, list(
       version    = corum_version,
       downloaded = format(Sys.time(), "%Y-%m-%d"),
-      source_url = base_url
+      source_url = paste0(api_base, "/public/file/download_current_file")
     ))
   }
   if("REACTOME" %in% type){ ## Process genesets from REACTOME
