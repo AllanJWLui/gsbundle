@@ -273,12 +273,16 @@ getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
   names(gzfile) = c("hsa", "bta", "cfa", "mmu", "ptr", "rno", "ssc")
   orgfile <- paste0("https://ftp.ensembl.org/pub/release-", version, "/tsv/", tolower(gzfile[org]), "/")
   download.file(orgfile, tmpfile, quiet = TRUE)
-  tmp = read.table(tmpfile, fill = TRUE, quote = "", stringsAsFactors = FALSE)
-  entrezfile <- paste0(orgfile, grep(paste0(version, ".entrez.tsv.gz"), tmp[,ncol(tmp)], value = TRUE))
+  html_lines <- readLines(tmpfile, warn = FALSE)
+  extract_href <- function(lines, pattern) {
+    m <- regmatches(lines, regexpr(paste0('href="([^"]*', pattern, '[^"]*)"'), lines))
+    gsub('href="|"', '', m[nchar(m) > 0][1])
+  }
+  entrezfile <- paste0(orgfile, extract_href(html_lines, paste0(version, "[.]entrez[.]tsv[.]gz")))
   # uniprotfile <- paste0("https://ftp.ensembl.org/pub/release-", version, "/tsv/",
   #                       tolower(gsub("\\..*", "", gzfile[org])), "/", gzfile[org],
   #                       version, ".uniprot.tsv.gz")
-  refseqfile <- paste0(orgfile, grep(paste0(version, ".refseq.tsv.gz"), tmp[,ncol(tmp)], value = TRUE))
+  refseqfile  <- paste0(orgfile, extract_href(html_lines, paste0(version, "[.]refseq[.]tsv[.]gz")))
   download.file(entrezfile, tmpfile, quiet = TRUE)
   ensg_entrez = read.table(tmpfile, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
   ensg_entrez = ensg_entrez[, c(1,4)]
