@@ -1,6 +1,7 @@
 export(EnrichedFilter)
 export(ReadGMT)
 export(cluster.dbscan)
+export(format_gs_name)
 export(TransGeneID)
 export(getGeneAnn)
 export(getOrtAnn)

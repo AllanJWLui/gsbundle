@@ -94,7 +94,7 @@ gsGetter <- function(gmtpath = NULL, type = "All", limit = c(0, Inf),
       colnames(m) = c("Collection","ENTREZID", "PathwayID", "PathwayName")
       m <- m %>%
         dplyr::filter(Collection %in% othertypes) %>%
-        dplyr::mutate(PathwayName = stringr::str_replace_all(PathwayName,"^[[:alnum:]]*_", "") %>% stringr::str_replace_all("_", " ")) %>%
+        dplyr::mutate(PathwayName = format_gs_name(stringr::str_replace_all(PathwayName, "^[[:alnum:]]*_", ""))) %>%
         dplyr::select(!Collection)
       gene2path = rbind(gene2path, m)
     }
