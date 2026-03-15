@@ -357,7 +357,7 @@ getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
       syn = syn[-1]
       if(length(syn)==0) syn = ""
       tmp = rbind(Uniprot, official, syn)
-      res = rbind(res, tmp)
+      res = c(res, as.vector(tmp))
     }
     return(res)
   })
