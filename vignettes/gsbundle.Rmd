@@ -1,0 +1,300 @@
+---
+title: "Introduction to gsbundle"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to gsbundle}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE   # network calls; set to TRUE locally if desired
+)
+```
+
+gsbundle provides three core capabilities for gene-centric analysis in R:
+
+1. **Gene set retrieval** — download and cache gene sets from KEGG,
+   Reactome, Gene Ontology, MSigDB, and CORUM
+2. **Gene ID conversion** — translate between Entrez, Symbol, Ensembl,
+   and UniProt identifiers, within and across organisms
+3. **Enrichment analysis** — run hypergeometric, over-representation, or
+   GSEA-style tests with optional DBSCAN-based redundancy filtering
+
+All data are downloaded from public databases on first use and stored in
+the user cache directory (`tools::R_user_dir("gsbundle", "cache")`), so
+subsequent calls work offline and are fast.
+
+```{r}
+library(gsbundle)
+```
+
+---
+
+## 1. Retrieving gene sets
+
+`gsGetter()` is the main entry point for fetching gene–pathway mappings.
+It returns a three-column data frame (`Gene`, `PathwayID`, `PathwayName`)
+ready to pass directly to `runEnrich()`.
+
+```{r}
+# KEGG and Reactome pathways (human)
+gene2path <- gsGetter(type = "KEGG+REACTOME", organism = "hsa")
+head(gene2path)
+```
+
+### Available databases and shorthands
+
+| `type` value | Databases included |
+|---|---|
+| `All` | Everything below |
+| `Pathway` | KEGG, REACTOME, C2_CP_PID, C2_CP_BIOCARTA, C2_CP_WIKIPATHWAYS, C2_CP_KEGG_MEDICUS |
+| `GO` | GOBP, GOCC, GOMF |
+| `Complex` | CORUM protein complexes |
+| `MSIGDB` | All MSigDB collections (C1–C8, H) |
+| Individual | `KEGG`, `REACTOME`, `GOBP`, `GOCC`, `GOMF`, `CORUM`, `C1`…`C8`, `H` |
+
+Combine any types with `+`:
+
+```{r}
+# Biological Process GO terms and KEGG only
+go_kegg <- gsGetter(type = "GOBP+KEGG", organism = "hsa")
+
+# Filter to gene sets with 15–500 members
+kegg_filtered <- gsGetter(type = "KEGG", organism = "hsa", limit = c(15, 500))
+
+# Mouse
+gene2path_mmu <- gsGetter(type = "KEGG+REACTOME", organism = "mmu")
+```
+
+MSigDB requires a local `.db` SQLite file (available from
+[msigdb.org](https://www.gsea-msigdb.org/gsea/msigdb)):
+
+```{r}
+msigdb_gs <- gsGetter(type = "H+C2", organism = "hsa",
+                      msigdb.path = "/path/to/msigdb.v2024.1.Hs.db")
+```
+
+### Custom GMT files
+
+```{r}
+custom <- gsGetter(gmtpath = "my_gene_sets.gmt", limit = c(10, 500))
+```
+
+### Updating cached data
+
+Databases are downloaded once. To refresh from source:
+
+```{r}
+# Force re-download of KEGG and Reactome
+gsGetter(type = "KEGG+REACTOME", organism = "hsa", update = TRUE)
+```
+
+### Checking cached database versions
+
+```{r}
+gs_versions()
+```
+
+---
+
+## 2. Gene ID conversion
+
+`TransGeneID()` converts a character vector of gene identifiers between
+formats. Built-in mappings (no internet required after first use) cover
+`Symbol`, `Entrez`, `Ensembl`, and `UniProt`. Additional formats are
+available via `biomaRt`.
+
+```{r}
+# Symbol → Entrez (default)
+TransGeneID(c("TP53", "BRCA1", "EGFR"), organism = "hsa")
+
+# Symbol → UniProt
+TransGeneID(c("TP53", "BRCA1"), toType = "uniprot", organism = "hsa")
+
+# Entrez → Ensembl
+TransGeneID(c("7157", "672"), fromType = "Entrez", toType = "Ensembl",
+            organism = "hsa")
+```
+
+### Cross-organism mapping
+
+```{r}
+# Mouse symbol → human symbol
+TransGeneID("Trp53", toType = "Symbol", fromOrg = "mmu", toOrg = "hsa")
+
+# Mouse Entrez → human Entrez
+TransGeneID("22059", fromType = "Entrez", toType = "Entrez",
+            fromOrg = "mmu", toOrg = "hsa")
+```
+
+The returned vector is named by the input identifiers, making it easy to
+propagate IDs through a pipeline:
+
+```{r}
+genes <- c("TP53", "BRCA1", "EGFR", "MYC", "KRAS")
+entrez <- TransGeneID(genes, organism = "hsa")
+# entrez["TP53"]  →  "7157"
+```
+
+Set `unique = FALSE` to return a data frame of all one-to-many mappings
+rather than the first match per input.
+
+---
+
+## 3. Enrichment analysis
+
+`runEnrich()` wraps `clusterProfiler` and works directly with the output
+of `gsGetter()`. The input `geneList` is a **named numeric vector** —
+names are gene IDs (Entrez by default) and values are scores such as
+log~2~ fold-changes, *t*-statistics, or –log~10~ *p*-values.
+
+```{r}
+if (!requireNamespace("clusterProfiler", quietly = TRUE))
+    BiocManager::install("clusterProfiler")
+
+gene2path <- gsGetter(type = "KEGG+GOBP", organism = "hsa")
+
+# Example: a named vector of scores (replace with real data)
+set.seed(42)
+geneList <- setNames(rnorm(300), sample(gene2path$Gene, 300))
+```
+
+### Hypergeometric test (over-representation)
+
+The hypergeometric test (`"HGT"`) asks whether a set of genes of interest
+is over-represented in each pathway relative to a background universe.
+The `geneList` values are used to compute a normalised enrichment score
+(`NES`) and `strength` (log~10~ enrichment ratio), but the significance
+test itself only uses the gene *names* (treated as a hit list).
+
+```{r}
+res_hgt <- runEnrich(geneList, gene2path,
+                     method       = "HGT",
+                     pvalueCutoff = 0.05)
+head(as.data.frame(res_hgt))
+```
+
+### GSEA
+
+GSEA ranks all genes by their score and tests whether pathway members
+cluster at the top or bottom of the ranked list.
+
+```{r}
+res_gsea <- runEnrich(geneList, gene2path,
+                      method       = "GSEA",
+                      pvalueCutoff = 0.25)
+```
+
+### Input in gene symbols
+
+If your `geneList` is named by gene symbols rather than Entrez IDs,
+specify `keytype`:
+
+```{r}
+symbol_list <- setNames(rnorm(100), sample(c("TP53", "MYC", "EGFR", "BRCA1"), 100, replace = TRUE))
+res <- runEnrich(symbol_list, gene2path, keytype = "Symbol", method = "HGT")
+```
+
+---
+
+## 4. Reducing redundant pathways
+
+Enrichment results from large databases often contain many overlapping
+pathways. gsbundle offers two complementary strategies.
+
+### DBSCAN clustering
+
+DBSCAN groups pathways by Jaccard similarity of their gene sets. Requires
+the `dbscan` package.
+
+```{r}
+# Add a cluster column without removing any rows
+res_clust <- runEnrich(geneList, gene2path, method = "HGT",
+                       pvalueCutoff = 0.05,
+                       cluster = TRUE, eps = 1.2, minpts = 2)
+
+# Then pick the top pathway per cluster yourself, e.g.:
+library(dplyr)
+top_per_cluster <- as.data.frame(res_clust) |>
+    slice_min(pvalue, n = 1, by = cluster)
+```
+
+```{r}
+# Or let runEnrich keep only the best representative per cluster
+res_filt <- runEnrich(geneList, gene2path, method = "HGT",
+                      pvalueCutoff = 0.05,
+                      filter = TRUE, eps = 1.2, minpts = 2)
+```
+
+Increase `eps` to merge more pathways into the same cluster (less
+granular); decrease it for finer grouping.
+
+### Jaccard cutoff filter
+
+`EnrichedFilter()` applies a simpler pairwise Jaccard cutoff and removes
+the lower-ranked member of any pair that exceeds it:
+
+```{r}
+filtered_df <- EnrichedFilter(res_hgt, cutoff = 0.8)
+```
+
+---
+
+## 5. Utility functions
+
+### Read a GMT file
+
+```{r}
+gene2path_custom <- ReadGMT("my_gene_sets.gmt", limit = c(10, 500))
+```
+
+### Format MSigDB pathway names
+
+MSigDB gene set names are stored in `SCREAMING_SNAKE_CASE`. `format_gs_name()`
+converts them to readable sentence-case labels, handling Greek letters and
+common acronyms:
+
+```{r}
+format_gs_name(c("TNFA_SIGNALING_VIA_NFKB",
+                 "PI3K_AKT_MTOR_SIGNALING",
+                 "KRAS_SIGNALING_DN",
+                 "PANCREAS_BETA_CELLS"))
+#> [1] "TNF-α signaling via NF-κB"
+#> [2] "PI3K-AKT-mTOR signaling"
+#> [3] "KRAS signaling down"
+#> [4] "Pancreas β cells"
+```
+
+This is applied automatically inside `gsGetter()` for MSigDB collections.
+
+### Organism helpers
+
+```{r}
+getOrg("human")   # $org = "hsa",  $pkg = "org.Hs.eg.db"
+getOrg("mmu")     # $org = "mmu",  $pkg = "org.Mm.eg.db"
+```
+
+### Retrieve raw gene annotations
+
+```{r}
+# Gene and protein annotations for human (downloads once, then cached)
+ann <- getGeneAnn("hsa")
+head(ann$Gene)     # entrez, symbol, ensembl, ...
+head(ann$Protein)  # uniprot, symbol, synonyms
+
+# Ortholog table: mouse → human
+orth <- getOrtAnn(fromOrg = "mmu", toOrg = "hsa")
+head(orth)
+```
+
+---
+
+## Session info
+
+```{r, eval = TRUE}
+sessionInfo()
+```

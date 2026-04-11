@@ -1,3 +1,5 @@
 ^\.git$
 ^.*\.jsonl$
 ^.*\.md$
+^LICENSE\.md$
+^\.github$
