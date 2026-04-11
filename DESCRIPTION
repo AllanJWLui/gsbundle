@@ -2,8 +2,11 @@ Package: gsbundle
 Type: Package
 Title: Gene Set Retrieval and Gene ID Conversion Utilities
 Version: 0.1.0
-Authors@R: person("Wubing", "Zhang", role = c("aut", "cre"),
-    email = "example@example.com")
+Authors@R: c(
+    person("Allan", "Lui", role = c("aut", "cre"),
+           email = "allan.lui@cruk.cam.ac.uk"),
+    person("Wubing", "Zhang", role = "aut",
+           comment = "Original author of adapted code from MAGeCKFlute"))
 Description: Provides functions for gene ID conversion across multiple
     formats and organisms, and retrieval of gene set annotations from
     KEGG, Reactome, Gene Ontology, MSigDB, and CORUM databases.

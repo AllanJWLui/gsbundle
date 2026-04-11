@@ -44,6 +44,8 @@
 #'
 #' @seealso \code{\link{gsGetter}}, \code{\link{cluster.dbscan}}
 #'
+#' @author Allan Lui
+#' 
 #' @examples
 #' \dontrun{
 #'   gene2path <- gsGetter(type = "KEGG+GOBP", organism = "hsa")
@@ -224,7 +226,7 @@ runEnrich <- function(geneList,
 
 
 ## ---------------------------------------------------------------------------
-## Similarity helpers (ported from Analysis_omics_integrated_ZNF703_exploratory.qmd)
+## Similarity helpers 
 ## ---------------------------------------------------------------------------
 
 ## Jaccard similarity between two gene sets

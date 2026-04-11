@@ -23,6 +23,7 @@
 #' @return A character vector, named by unique input gene ids.
 #'
 #' @author Wubing Zhang
+#' @author Allan Lui
 #'
 #' @examples
 #' TransGeneID("HLA-A", organism="hsa")
