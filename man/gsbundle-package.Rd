@@ -12,7 +12,7 @@ organisms, and running gene set enrichment analyses.
 }
 \section{Gene set retrieval}{
 
-Use \code{\link[=gsGetter]{gsGetter()}} to fetch gene–pathway mappings from KEGG, Reactome,
+Use \code{\link[=gsGetter]{gsGetter()}} to fetch gene-pathway mappings from KEGG, Reactome,
 Gene Ontology, MSigDB, or CORUM. Results are cached locally in
 \code{tools::R_user_dir("gsbundle", "cache")} and reused on subsequent calls.
 Call \code{\link[=retrieve_gs]{retrieve_gs()}} to force a re-download, and \code{\link[=gs_versions]{gs_versions()}} to
@@ -23,8 +23,8 @@ inspect the version of each cached database.
 
 \code{\link[=TransGeneID]{TransGeneID()}} converts a character vector of gene identifiers between
 Entrez, Symbol, Ensembl, and UniProt formats, within a single organism or
-across organisms (e.g. mouse → human). Cross-organism mapping uses
-ortholog tables from MGI, NCBI HomoloGene, and Ensembl. Annotation data
+across organisms (e.g. mouse -> human). Cross-organism mapping uses
+ortholog tables from MGI, the NCBI gene_orthologs file, and Ensembl. Annotation data
 is fetched via \code{\link[=getGeneAnn]{getGeneAnn()}} (within-organism) and \code{\link[=getOrtAnn]{getOrtAnn()}}
 (cross-organism).
 }

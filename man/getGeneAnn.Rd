@@ -11,6 +11,9 @@ getGeneAnn(org = "hsa", update = FALSE, release = NULL)
 \item{org}{Character, hsa (default), bta, cfa, mmu, ptr, rno, ssc are optional.}
 
 \item{update}{Boolean, indicating whether download current annotation.}
+
+\item{release}{Optional Ensembl release number (integer). If \code{NULL}
+(default) the latest release is queried automatically.}
 }
 \value{
 A data frame.

@@ -137,7 +137,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
 
   if("KEGG" %in% type){ ## Process genesets from KEGG
     if (!is.null(release))
-      message("release= is ignored for KEGG — only the current version is available")
+      message("release= is ignored for KEGG -- only the current version is available")
     message(format(Sys.time(), " Downloading genesets from KEGG ..."))
     gene2path = read.table(paste0("https://rest.kegg.jp/link/pathway/", organism),
                            sep = "\t", stringsAsFactors = FALSE)
@@ -172,7 +172,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
     locfname  <- file.path(.gsbundle_cache(cache.dir), "allComplexes_current.txt")
 
     if (!is.null(release)) {
-      ## Archived release — server returns a zip containing the txt
+      ## Archived release -- server returns a zip containing the txt
       corum_version <- as.character(release)
       zip_tmp <- file.path(.gsbundle_cache(cache.dir),
                            paste0("corum_v", corum_version, ".zip"))
@@ -188,7 +188,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
                           fill = TRUE)
       suppressWarnings(try(file.remove(zip_tmp), silent = TRUE))
     } else {
-      ## Current release — server returns the txt file directly
+      ## Current release -- server returns the txt file directly
       ver_json <- jsonlite::fromJSON(
         paste(readLines(url(paste0(api_base, "/public/releases/current")),
                         warn = FALSE), collapse = "")
@@ -235,7 +235,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
   }
   if("REACTOME" %in% type){ ## Process genesets from REACTOME
     if (!is.null(release))
-      message("release= is ignored for REACTOME — only the current version is available")
+      message("release= is ignored for REACTOME -- only the current version is available")
     message(format(Sys.time(), " Downloading genesets from REACTOME ..."))
     reactome_url <- "https://reactome.org/download/current/NCBI2Reactome.txt"
     reactome_version <- .get_last_modified(reactome_url)
@@ -257,7 +257,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
   ## Process genesets from Gene ontology
   if(any(grepl("^GO", type))){
     if (!is.null(release))
-      message("release= is ignored for GO — only the current version is available")
+      message("release= is ignored for GO -- only the current version is available")
     message(format(Sys.time(), " Downloading genesets from Gene Ontology ..."))
     go_url <- "https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz"
     go_version <- .get_last_modified(go_url)

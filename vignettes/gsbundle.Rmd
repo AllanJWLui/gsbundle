@@ -170,7 +170,7 @@ TransGeneID("22059", fromType = "Entrez", toType = "Entrez",
 ```
 
 Cross-organism mapping for `Symbol` and `Entrez` uses built-in annotations
-from MGI and NCBI HomoloGene (downloaded via `getOrtAnn()`). For other ID
+from MGI and the NCBI `gene_orthologs` file (downloaded via `getOrtAnn()`). For other ID
 types, `biomaRt` is used automatically.
 
 ### Updating gene annotations
@@ -219,7 +219,8 @@ res_hgt <- runEnrich(geneList, gene2path,
 head(as.data.frame(res_hgt))
 ```
 
-The result data frame contains: `ID`, `Description`, `NES`, `meanVal`,
+The result data frame contains: `ID`, `set` (the leading alphanumeric token
+of `ID`, e.g. `"KEGG"` or `"GOBP"`), `Description`, `NES`, `meanVal`,
 `strength`, `pvalue`, `p.adjust`, `GeneRatio`, `BgRatio`, `geneID`
 (Entrez IDs), `geneName` (symbols), and `Count`.
 

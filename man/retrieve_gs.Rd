@@ -9,7 +9,8 @@ retrieve_gs(
   type = c("KEGG", "REACTOME", "CORUM", "GO", "MSIGDB"),
   organism = "hsa",
   msigdb.path = NULL,
-  release = NULL
+  release = NULL,
+  cache.dir = NULL
 )
 }
 \arguments{
@@ -18,6 +19,13 @@ retrieve_gs(
 \item{organism}{'hsa' or 'mmu'.}
 
 \item{msigdb.path}{Path to msigdb sqlite file. Must be provided if `MSIGDB` is specified in `type`}
+
+\item{release}{Optional version/release string. Currently only used for
+CORUM (selects an archived release). Ignored for KEGG, REACTOME, and GO
+where only the current version is available.}
+
+\item{cache.dir}{Path to a directory for storing cached gene set files.
+Overrides \code{options("gsbundle.cache")} and the default system cache.}
 }
 \value{
 save data to local library.

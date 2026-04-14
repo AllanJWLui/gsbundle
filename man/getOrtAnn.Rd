@@ -3,7 +3,7 @@
 \docType{methods}
 \name{getOrtAnn}
 \alias{getOrtAnn}
-\title{Retreive reference orthologs annotation.}
+\title{Retrieve reference orthologs annotation.}
 \usage{
 getOrtAnn(fromOrg = "mmu", toOrg = "hsa", update = FALSE)
 }
@@ -12,13 +12,17 @@ getOrtAnn(fromOrg = "mmu", toOrg = "hsa", update = FALSE)
 
 \item{toOrg}{Character, hsa (default), bta, cfa, mmu, ptr, rno, ssc are optional.}
 
-\item{update}{Boolean, indicating whether download recent annotation from NCBI.}
+\item{update}{Boolean, indicating whether to re-download annotations from source.}
 }
 \value{
-A data frame.
+A data frame with columns \code{{fromOrg}_symbol}, \code{{fromOrg}_entrez},
+\code{{toOrg}_symbol}, \code{{toOrg}_entrez}.
 }
 \description{
-Retreive reference orthologs annotation.
+Downloads pairwise ortholog mappings from MGI (mouse-human) and the NCBI
+\code{gene_orthologs} file (all supported organism pairs), optionally
+supplemented with Ensembl orthologs via \pkg{biomaRt}. Results are cached
+locally; subsequent calls return the cached data frame immediately.
 }
 \examples{
 \dontrun{

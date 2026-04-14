@@ -28,7 +28,9 @@
 #' @examples
 #' TransGeneID("HLA-A", organism="hsa")
 #' TransGeneID("HLA-A", toType = "uniprot", organism="hsa")
+#' \dontrun{
 #' TransGeneID("H2-K1", toType="Symbol", fromOrg = "mmu", toOrg = "hsa")
+#' }
 #'
 #' @export
 
@@ -413,7 +415,12 @@ getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
 }
 
 
-#' Retreive reference orthologs annotation.
+#' Retrieve reference orthologs annotation.
+#'
+#' Downloads pairwise ortholog mappings from MGI (mouse-human) and the NCBI
+#' \code{gene_orthologs} file (all supported organism pairs), optionally
+#' supplemented with Ensembl orthologs via \pkg{biomaRt}. Results are cached
+#' locally; subsequent calls return the cached data frame immediately.
 #'
 #' @docType methods
 #' @name getOrtAnn
@@ -421,7 +428,7 @@ getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
 #'
 #' @param fromOrg Character, hsa (default), bta, cfa, mmu, ptr, rno, ssc are optional.
 #' @param toOrg Character, hsa (default), bta, cfa, mmu, ptr, rno, ssc are optional.
-#' @param update Boolean, indicating whether download recent annotation from NCBI.
+#' @param update Boolean, indicating whether to re-download annotations from source.
 #' @return A data frame.
 #'
 #' @author Wubing Zhang
@@ -442,69 +449,96 @@ getOrtAnn <- function(fromOrg = "mmu", toOrg = "hsa", update = FALSE){
 
   keggcode = c("hsa", "mmu", "rno", "bta", "cfa", "ptr", "ssc")
   names(keggcode) = c("human", "mouse", "rat", "bovine", "canine", "chimp", "pig")
-  #### Download data from MGI ####
-  locfname <- file.path(.gsbundle_cache(),
-                        "HOM_MouseHumanSequence.rpt.gz")
+  taxid = c(hsa=9606L, mmu=10090L, rno=10116L, bta=9913L, cfa=9615L, ptr=9598L, ssc=9823L)
+  from_tax = taxid[fromOrg]
+  to_tax   = taxid[toOrg]
+
+  #### Download data from MGI (mouse-human only) ####
+  mgi_ann <- NULL
+  if (all(c(fromOrg, toOrg) %in% c("hsa", "mmu"))) {
+    locfname <- file.path(.gsbundle_cache(), "HOM_MouseHumanSequence.rpt.gz")
+    if((!file.exists(locfname)) | update){
+      refname <- "https://www.informatics.jax.org/downloads/reports/HOM_MouseHumanSequence.rpt"
+      download.file(refname, locfname, quiet = TRUE)
+    }
+    mgi_raw = read.table(locfname, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+    mgi_raw = mgi_raw[, c(1,2,4,5)]
+    colnames(mgi_raw) = c("homoloid", "org", "symbol", "entrez")
+    mgi_raw$org = gsub(", laboratory", "", mgi_raw$org)
+    mgi_raw$org = keggcode[mgi_raw$org]
+    tmp1 = mgi_raw[mgi_raw$org == fromOrg, c("homoloid", "symbol", "entrez")]
+    tmp2 = mgi_raw[mgi_raw$org == toOrg,   c("homoloid", "symbol", "entrez")]
+    colnames(tmp1)[2:3] = paste0(fromOrg, c("_symbol", "_entrez"))
+    colnames(tmp2)[2:3] = paste0(toOrg,   c("_symbol", "_entrez"))
+    mgi_ann = merge(tmp1, tmp2, by = "homoloid")[, -1]
+  }
+
+  #### Download data from NCBI gene_orthologs ####
+  ## HomoloGene was retired Jan 2024; gene_orthologs.gz is the current replacement.
+  locfname <- file.path(.gsbundle_cache(), "gene_orthologs.gz")
   if((!file.exists(locfname)) | update){
-    ## Download gene information
-    refname <- "https://www.informatics.jax.org/downloads/reports/HOM_MouseHumanSequence.rpt"
+    refname <- "https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_orthologs.gz"
     download.file(refname, locfname, quiet = TRUE)
   }
-  ## Reorder the mapping file
-  read.table(locfname, sep = "\t", header = TRUE, stringsAsFactors = FALSE) -> mgi_ann
-  mgi_ann = mgi_ann[, c(1,2,4,5)]
-  colnames(mgi_ann) = c("homoloid", "org", "symbol", "entrez")
-  mgi_ann$org = gsub(", laboratory", "", mgi_ann$org)
-  mgi_ann$org = keggcode[mgi_ann$org]
+  ## Columns: #tax_id, GeneID, relationship, Other_tax_id, Other_GeneID
+  ncbi_raw = read.table(gzfile(locfname), sep = "\t", header = TRUE,
+                        stringsAsFactors = FALSE, quote = "", comment.char = "")
+  ncbi_raw = ncbi_raw[ncbi_raw[[3]] == "Ortholog", c(1L, 2L, 4L, 5L)]
+  colnames(ncbi_raw) = c("tax_id", "GeneID", "Other_tax_id", "Other_GeneID")
 
-  #### Download data from NCBI ####
-  locfname <- file.path(.gsbundle_cache(),
-                        "homologene.data.gz")
-  if((!file.exists(locfname)) | update){
-    ## Download gene information
-    refname <- "https://ftp.ncbi.nlm.nih.gov/pub/HomoloGene/current/homologene.data"
-    download.file(refname, locfname, quiet = TRUE)
-  }
-  ## Reorder the mapping file
-  read.table(locfname, sep = "\t", stringsAsFactors = FALSE, quote = "") -> ncbi_ann
-  ncbi_ann = ncbi_ann[, c(1,2,4,3)]
-  colnames(ncbi_ann) = c("homoloid", "org", "symbol", "entrez")
-  names(keggcode) = c(9606, 10090, 10116, 9913, 9615, 9598, 9823)
-  ncbi_ann$org = keggcode[as.character(ncbi_ann$org)]
-  ncbi_ann = ncbi_ann[!is.na(ncbi_ann$org), ]
+  ## Extract pairs in both directions, normalised to fromOrg -> toOrg
+  fwd = ncbi_raw[ncbi_raw$tax_id == from_tax & ncbi_raw$Other_tax_id == to_tax,
+                 c("GeneID", "Other_GeneID")]
+  rev = ncbi_raw[ncbi_raw$tax_id == to_tax   & ncbi_raw$Other_tax_id == from_tax,
+                 c("Other_GeneID", "GeneID")]
+  colnames(fwd) = colnames(rev) = c("from_entrez", "to_entrez")
+  entrez_pairs = unique(rbind(fwd, rev))
 
-  ## Merge and arrange the mapping file
-  ann = rbind.data.frame(mgi_ann, ncbi_ann)
-  genes = unique(ann$entrez)
-  idx1 = ann$entrez %in% genes
-  idx2 = ann$org == toOrg
-  idx3 = ann$homoloid %in% ann$homoloid[idx1]
-  tmp1 = ann[idx1, c("homoloid", "symbol", "entrez")]
-  tmp2 = ann[(idx2&idx3), c("homoloid", "symbol", "entrez")]
-  colnames(tmp1)[2:3] = paste0(fromOrg, c("_symbol", "_entrez"))
-  colnames(tmp2)[2:3] = paste0(toOrg, c("_symbol", "_entrez"))
-  ann = merge(tmp1, tmp2, by = "homoloid")[,-1]
+  ## Look up symbols via getGeneAnn (uses cache if already downloaded)
+  from_gene = getGeneAnn(fromOrg, update = FALSE)$Gene
+  to_gene   = getGeneAnn(toOrg,   update = FALSE)$Gene
+  from_sym  = stats::setNames(from_gene$symbol, from_gene$entrez)
+  to_sym    = stats::setNames(to_gene$symbol,   to_gene$entrez)
 
-  #### Retrieve annotation from Ensembl ####
+  ncbi_ann = data.frame(
+    from_symbol = unname(from_sym[as.character(entrez_pairs$from_entrez)]),
+    from_entrez = as.character(entrez_pairs$from_entrez),
+    to_symbol   = unname(to_sym[as.character(entrez_pairs$to_entrez)]),
+    to_entrez   = as.character(entrez_pairs$to_entrez),
+    stringsAsFactors = FALSE, row.names = NULL
+  )
+  colnames(ncbi_ann) = c(paste0(fromOrg, c("_symbol", "_entrez")),
+                         paste0(toOrg,   c("_symbol", "_entrez")))
+  ncbi_ann = ncbi_ann[!is.na(ncbi_ann[,1]) & !is.na(ncbi_ann[,3]), ]
+
+  ## Combine sources
+  ann = if (!is.null(mgi_ann)) rbind.data.frame(mgi_ann, ncbi_ann) else ncbi_ann
+
+  #### Retrieve annotation from Ensembl (optional -- requires biomaRt) ####
   datasets = paste0(c("hsapiens", "mmusculus", "btaurus", "cfamiliaris",
                       "ptroglodytes", "rnorvegicus", "sscrofa"), "_gene_ensembl")
-  ## Ortholog ID mapping.
-  if (!requireNamespace("biomaRt", quietly = TRUE)) {
-    stop("Package \"biomaRt\" is required. Please install it.", call. = FALSE)
+  if (requireNamespace("biomaRt", quietly = TRUE)) {
+    tryCatch({
+      from = biomaRt::useMart("ensembl", dataset = datasets[grepl(fromOrg, datasets)])
+      to   = biomaRt::useMart("ensembl", dataset = datasets[grepl(toOrg,   datasets)])
+      from_symbol <- ifelse(fromOrg == "mmu", "mgi_symbol", "hgnc_symbol")
+      to_symbol   <- ifelse(toOrg   == "mmu", "mgi_symbol", "hgnc_symbol")
+      ensembl_ann = biomaRt::getLDS(
+        attributes  = c(from_symbol, "entrezgene_id"), mart  = from,
+        attributesL = c(to_symbol,   "entrezgene_id"), martL = to
+      )
+      colnames(ensembl_ann) = c(paste0(fromOrg, c("_symbol", "_entrez")),
+                                paste0(toOrg,   c("_symbol", "_entrez")))
+      ann = rbind.data.frame(ann, ensembl_ann)
+    }, error = function(e) {
+      message("biomaRt Ensembl query failed: ", conditionMessage(e),
+              "\nProceeding without Ensembl orthologs.")
+    })
+  } else {
+    message("biomaRt not available; Ensembl orthologs skipped.")
   }
-  from = biomaRt::useMart("ensembl", dataset = datasets[grepl(fromOrg, datasets)])
-  to = biomaRt::useMart("ensembl", dataset = datasets[grepl(toOrg, datasets)])
-  ## decide the attributes automatically
-  from_symbol <- ifelse(fromOrg=="mmu", "mgi_symbol", "hgnc_symbol")
-  to_symbol <- ifelse(toOrg=="mmu", "mgi_symbol", "hgnc_symbol")
-  ## retrieve the data
-  ensembl_ann = biomaRt::getLDS(attributes = c(from_symbol, "entrezgene_id"), mart = from,
-                                attributesL = c(to_symbol, "entrezgene_id"), martL = to)
-  colnames(ensembl_ann) = c(paste0(fromOrg, c("_symbol", "_entrez")),
-                            paste0(toOrg, c("_symbol", "_entrez")))
 
-  ## Merge all the annotations
-  ann = rbind.data.frame(ann, ensembl_ann)
+  ## Deduplicate and save
   idx = duplicated(paste(ann[,1], ann[,2], ann[,3], ann[,4], sep = "_"))
   ann = ann[!idx, ]
   saveRDS(ann, rdsann)
@@ -522,7 +556,7 @@ getOrtAnn <- function(fromOrg = "mmu", toOrg = "hsa", update = FALSE){
 #' and can also be "human" (case insensitive).
 #' @return A list containing three elements:
 #' \item{org}{species}
-#' \code{pkg}{annotation package name}
+#' \item{pkg}{annotation package name}
 #'
 #' @author Wubing Zhang
 #'

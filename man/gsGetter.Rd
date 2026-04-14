@@ -11,7 +11,8 @@ gsGetter(
   limit = c(0, Inf),
   organism = "hsa",
   update = FALSE,
-  msigdb.path = NULL
+  msigdb.path = NULL,
+  cache.dir = NULL
 )
 }
 \arguments{
@@ -32,6 +33,10 @@ maximal size of gene sets to load.}
 \item{update}{Boolean, indicating whether update the gene sets from source database.}
 
 \item{msigdb.path}{Path to msigdb sqlite file. Must be provided if `update` = `TRUE` and "MSIGDB" is specified in `type`}
+
+\item{cache.dir}{Path to a directory used for storing and reading cached gene
+set files. Overrides \code{options("gsbundle.cache")} and the default
+system cache location.}
 }
 \value{
 A three-column data frame.

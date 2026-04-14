@@ -15,7 +15,7 @@ and can also be "human" (case insensitive).}
 \value{
 A list containing three elements:
 \item{org}{species}
-\code{pkg}{annotation package name}
+\item{pkg}{annotation package name}
 }
 \description{
 Get the kegg code of specific mammalia organism.

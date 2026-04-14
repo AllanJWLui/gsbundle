@@ -5,7 +5,7 @@
 #' organisms, and running gene set enrichment analyses.
 #'
 #' @section Gene set retrieval:
-#' Use [gsGetter()] to fetch gene–pathway mappings from KEGG, Reactome,
+#' Use [gsGetter()] to fetch gene-pathway mappings from KEGG, Reactome,
 #' Gene Ontology, MSigDB, or CORUM. Results are cached locally in
 #' `tools::R_user_dir("gsbundle", "cache")` and reused on subsequent calls.
 #' Call [retrieve_gs()] to force a re-download, and [gs_versions()] to
@@ -14,8 +14,8 @@
 #' @section Gene ID conversion:
 #' [TransGeneID()] converts a character vector of gene identifiers between
 #' Entrez, Symbol, Ensembl, and UniProt formats, within a single organism or
-#' across organisms (e.g. mouse → human). Cross-organism mapping uses
-#' ortholog tables from MGI, NCBI HomoloGene, and Ensembl. Annotation data
+#' across organisms (e.g. mouse -> human). Cross-organism mapping uses
+#' ortholog tables from MGI, the NCBI gene_orthologs file, and Ensembl. Annotation data
 #' is fetched via [getGeneAnn()] (within-organism) and [getOrtAnn()]
 #' (cross-organism).
 #'

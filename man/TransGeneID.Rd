@@ -51,8 +51,9 @@ Gene ID conversion
 \examples{
 TransGeneID("HLA-A", organism="hsa")
 TransGeneID("HLA-A", toType = "uniprot", organism="hsa")
+\dontrun{
 TransGeneID("H2-K1", toType="Symbol", fromOrg = "mmu", toOrg = "hsa")
-
+}
 }
 \author{
 Wubing Zhang

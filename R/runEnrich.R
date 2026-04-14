@@ -37,8 +37,9 @@
 #'   or \code{clusterProfiler::GSEA}.
 #'
 #' @return An \code{enrichResult} object (HGT/ORT) or \code{gseaResult}
-#'   object (GSEA) from \pkg{clusterProfiler}, with an added \code{geneName}
-#'   column of gene symbols. When \code{cluster = TRUE} or
+#'   object (GSEA) from \pkg{clusterProfiler}, with added \code{set} (the
+#'   leading alphanumeric token of \code{ID}, e.g. the database prefix) and
+#'   \code{geneName} columns. When \code{cluster = TRUE} or
 #'   \code{filter = TRUE}, a \code{cluster} column is also present showing
 #'   the DBSCAN cluster assignment.
 #'
@@ -153,8 +154,10 @@ runEnrich <- function(geneList,
     enrichedRes@result$geneName <- unlist(geneName)
     enrichedRes@result$Count    <- lengths(geneID)
 
+    enrichedRes@result$set <- stringr::str_extract(enrichedRes@result$ID, "[:alnum:]+")
+
     keep_cols <- intersect(
-      c("ID", "Description", "NES", "pvalue", "p.adjust",
+      c("ID", "set", "Description", "NES", "pvalue", "p.adjust",
         "geneID", "geneName", "Count"),
       colnames(enrichedRes@result)
     )
@@ -216,7 +219,9 @@ runEnrich <- function(geneList,
                            function(x) as.numeric(x[1]) / as.numeric(x[2]), numeric(1))
     res$strength <- log10(observed / expected)
 
-    keep_cols <- c("ID", "Description", "NES", "meanVal", "strength",
+    res$set <- stringr::str_extract(res$ID, "[:alnum:]+")
+
+    keep_cols <- c("ID", "set", "Description", "NES", "meanVal", "strength",
                    "pvalue", "p.adjust", "GeneRatio", "BgRatio",
                    "geneID", "geneName", "Count")
     enrichedRes@result <- res[, intersect(keep_cols, colnames(res))]
@@ -238,7 +243,7 @@ runEnrich <- function(geneList,
 
 ## Build a pairwise Jaccard similarity matrix from a result data frame
 .get_similarity_matrix <- function(result) {
-  geneSets <- setNames(strsplit(as.character(result$geneID), "/", fixed = TRUE),
+  geneSets <- stats::setNames(strsplit(as.character(result$geneID), "/", fixed = TRUE),
                        result$ID)
   id <- result$ID
   n  <- nrow(result)
@@ -292,7 +297,7 @@ cluster.dbscan <- function(result, eps = 1.2, minpts = 2) {
     stop("Package 'dbscan' is required. Please install it.", call. = FALSE)
 
   sim_mat  <- .get_similarity_matrix(result)
-  dist_mat <- as.matrix(as.dist(1 - sim_mat))
+  dist_mat <- as.matrix(stats::as.dist(1 - sim_mat))
   db_res   <- dbscan::dbscan(dist_mat, eps = eps, minPts = minpts)
 
   clusters <- db_res$cluster

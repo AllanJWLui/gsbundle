@@ -114,11 +114,11 @@ format_gs_name <- function(x) {
   x <- gsub("_DN$", "_down", x)
   x <- gsub("_UP$", "_up",   x)
 
-  ## Step 2: underscores → spaces, then full lower-case
+  ## Step 2: underscores -> spaces, then full lower-case
   x <- tolower(gsub("_", " ", x))
 
   ## Step 3: multi-word substitutions (longest / most-specific first)
-  ##   Greek letters: \u03b1 = α, \u03b2 = β, \u03b3 = γ, \u03baB = κB
+  ##   Greek letters: \\u03b1 = alpha, \\u03b2 = beta, \\u03b3 = gamma, \\u03ba = kappa
   x <- gsub("tnfa signaling via nfkb",
             "TNF-\u03b1 signaling via NF-\u03baB", x)
   x <- gsub("wnt beta catenin",           "Wnt-\u03b2-catenin",        x)
