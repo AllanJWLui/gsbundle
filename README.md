@@ -9,9 +9,9 @@ converting gene identifiers across formats and organisms, and running
 enrichment analyses (hypergeometric test, over-representation test, GSEA)
 with optional DBSCAN-based redundancy filtering.
 
-Annotation data is downloaded once from public databases and cached locally
-in the user cache directory (`tools::R_user_dir("gsbundle", "cache")`), so
-subsequent calls are fast and work offline.
+Annotation data is downloaded once from public databases and cached locally,
+so subsequent calls are fast and work offline. The cache location is
+configurable — see [Configuring the cache directory](#configuring-the-cache-directory).
 
 ## Installation
 
@@ -58,8 +58,8 @@ library(gsbundle)
 # KEGG and Reactome pathways for human
 gene2path <- gsGetter(type = "KEGG+REACTOME", organism = "hsa")
 head(gene2path)
-#>     Gene      PathwayID              PathwayName
-#> 1  10327  KEGG_hsa00010  Glycolysis / Gluconeogenesis
+#>   Gene      PathwayID              PathwayName
+#> 1 10327 KEGG_hsa00010  Glycolysis / Gluconeogenesis
 #> ...
 
 # Gene Ontology (Biological Process + Molecular Function)
@@ -68,7 +68,7 @@ go <- gsGetter(type = "GOBP+GOMF", organism = "hsa")
 # All available gene sets
 all_gs <- gsGetter(type = "All", organism = "hsa")
 
-# Filter by gene set size
+# Filter by gene set size (15–500 genes)
 kegg <- gsGetter(type = "KEGG", organism = "hsa", limit = c(15, 500))
 
 # Custom GMT file
@@ -77,13 +77,13 @@ custom <- gsGetter(gmtpath = "my_gene_sets.gmt")
 
 Available `type` values and shorthands:
 
-| Shorthand   | Expands to                                                                 |
-|-------------|---------------------------------------------------------------------------|
-| `All`       | Pathway + GO + Complex + MSigDB                                           |
-| `Pathway`   | KEGG, REACTOME, C2_CP_PID, C2_CP_BIOCARTA, C2_CP_WIKIPATHWAYS, C2_CP_KEGG_MEDICUS |
-| `GO`        | GOBP, GOCC, GOMF                                                          |
-| `Complex`   | CORUM                                                                      |
-| `MSIGDB`    | C1, C2, C3, C4, C5, C6, C7, C8, H                                         |
+| Shorthand   | Expands to                                                                          |
+|-------------|-------------------------------------------------------------------------------------|
+| `All`       | Pathway + GO + Complex + MSigDB                                                     |
+| `Pathway`   | KEGG, REACTOME, C2_CP_PID, C2_CP_BIOCARTA, C2_CP_WIKIPATHWAYS, C2_CP_KEGG_MEDICUS  |
+| `GO`        | GOBP, GOCC, GOMF                                                                    |
+| `Complex`   | CORUM                                                                               |
+| `MSIGDB`    | C1, C2, C3, C4, C5, C6, C7, C8, H                                                  |
 
 Combine any types with `+`, e.g. `"KEGG+GOBP+CORUM"`.
 
@@ -99,7 +99,7 @@ TransGeneID("HLA-A", toType = "uniprot", organism = "hsa")
 # Cross-organism: mouse symbol to human symbol
 TransGeneID("H2-K1", toType = "Symbol", fromOrg = "mmu", toOrg = "hsa")
 
-# Batch conversion
+# Batch conversion — returns a named vector
 genes <- c("TP53", "BRCA1", "EGFR", "MYC")
 TransGeneID(genes, fromType = "Symbol", toType = "Entrez", organism = "hsa")
 ```
@@ -139,26 +139,80 @@ test), `"GSEA"` (gene set enrichment analysis).
 
 ## Key functions
 
-| Function          | Description                                                |
-|-------------------|------------------------------------------------------------|
-| `gsGetter()`      | Retrieve gene sets from KEGG, Reactome, GO, MSigDB, CORUM |
-| `retrieve_gs()`   | Download/update gene set databases to local cache          |
-| `TransGeneID()`   | Convert gene IDs across formats and organisms              |
-| `getGeneAnn()`    | Fetch gene annotations from NCBI, Ensembl, and UniProt     |
-| `getOrtAnn()`     | Fetch ortholog annotations (cross-organism mapping)        |
-| `runEnrich()`     | Run enrichment analysis (HGT, ORT, or GSEA)               |
-| `EnrichedFilter()`| Remove redundant pathways by Jaccard similarity            |
-| `cluster.dbscan()`| DBSCAN clustering of enrichment results by gene overlap    |
-| `ReadGMT()`       | Parse a GMT file into a data frame                         |
-| `format_gs_name()`| Convert MSigDB SCREAMING_SNAKE_CASE names to readable form |
-| `gs_versions()`   | Show versions of locally cached databases                  |
-| `getOrg()`        | Look up organism annotation package names                  |
+| Function           | Description                                                 |
+|--------------------|-------------------------------------------------------------|
+| `gsGetter()`       | Retrieve gene sets from KEGG, Reactome, GO, MSigDB, CORUM  |
+| `retrieve_gs()`    | Download/update gene set databases to local cache           |
+| `TransGeneID()`    | Convert gene IDs across formats and organisms               |
+| `getGeneAnn()`     | Fetch gene annotations from NCBI, Ensembl, and UniProt      |
+| `getOrtAnn()`      | Fetch ortholog annotations (cross-organism mapping)         |
+| `runEnrich()`      | Run enrichment analysis (HGT, ORT, or GSEA)                |
+| `EnrichedFilter()` | Remove redundant pathways by Jaccard similarity             |
+| `cluster.dbscan()` | DBSCAN clustering of enrichment results by gene overlap     |
+| `ReadGMT()`        | Parse a GMT file into a data frame                          |
+| `format_gs_name()` | Convert MSigDB SCREAMING_SNAKE_CASE names to readable form  |
+| `gs_versions()`    | Show versions of locally cached databases                   |
+| `getOrg()`         | Look up organism annotation package names                   |
 
 ## Caching and versioning
 
-All downloaded annotations are cached under
-`tools::R_user_dir("gsbundle", "cache")`. To force a re-download from
-source databases, pass `update = TRUE`:
+All downloaded annotations are stored in a local cache directory and reused
+on subsequent calls. The cache location is resolved in this priority order:
+
+1. **`cache.dir` argument** — passed directly to `gsGetter()` or
+   `retrieve_gs()` for that call only
+2. **`options("gsbundle.cache")`** — session-wide default; set once and all
+   functions pick it up automatically
+3. **System default** — `tools::R_user_dir("gsbundle", "cache")`, typically
+   something like `~/.cache/R/gsbundle/` on Linux/macOS or
+   `%LOCALAPPDATA%\R\Cache\R\gsbundle\` on Windows
+
+### Configuring the cache directory
+
+**Per-call** (highest priority):
+
+```r
+# Download to and read from a specific folder for this call only
+gsGetter(type = "KEGG+GOBP", organism = "hsa",
+         cache.dir = "/data/shared/gsbundle_cache")
+```
+
+**Session-wide option** (recommended for interactive use):
+
+```r
+# Set once, applies to all subsequent calls in this session
+options(gsbundle.cache = "/data/shared/gsbundle_cache")
+
+gene2path <- gsGetter(type = "KEGG+GOBP", organism = "hsa")
+ann       <- getGeneAnn("hsa")
+```
+
+**Persistent default** (add to `~/.Rprofile` or a project `.Rprofile`):
+
+```r
+# ~/.Rprofile
+options(gsbundle.cache = "/data/shared/gsbundle_cache")
+```
+
+### Shared / HPC cache
+
+On a cluster or shared workstation, point all sessions at a common
+pre-built cache directory so that data only needs to be downloaded once:
+
+```r
+# Populate the shared cache once (e.g. by a data manager)
+retrieve_gs(type = c("KEGG", "REACTOME", "GO"), organism = "hsa",
+            cache.dir = "/data/shared/gsbundle_cache")
+getGeneAnn("hsa")  # uses options("gsbundle.cache") if set
+
+# Every user then reads from the same location
+options(gsbundle.cache = "/data/shared/gsbundle_cache")
+gene2path <- gsGetter(type = "KEGG+GOBP", organism = "hsa")
+```
+
+### Forcing a re-download
+
+To refresh from source databases, pass `update = TRUE`:
 
 ```r
 # Re-download KEGG and GO gene sets
@@ -168,7 +222,7 @@ gsGetter(type = "KEGG+GOBP", organism = "hsa", update = TRUE)
 getGeneAnn("hsa", update = TRUE)
 ```
 
-Check which database versions are cached locally:
+### Checking cached database versions
 
 ```r
 gs_versions()

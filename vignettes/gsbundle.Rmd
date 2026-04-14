@@ -25,8 +25,9 @@ gsbundle provides three core capabilities for gene-centric analysis in R:
    GSEA-style tests with optional DBSCAN-based redundancy filtering
 
 All data are downloaded from public databases on first use and stored in
-the user cache directory (`tools::R_user_dir("gsbundle", "cache")`), so
-subsequent calls work offline and are fast.
+a local cache directory, so subsequent calls work offline and are fast.
+The cache location is fully configurable — see
+[Section 6: Configuring the cache directory](#configuring-the-cache-directory).
 
 ```{r}
 library(gsbundle)
@@ -66,7 +67,7 @@ go_kegg <- gsGetter(type = "GOBP+KEGG", organism = "hsa")
 # Filter to gene sets with 15–500 members
 kegg_filtered <- gsGetter(type = "KEGG", organism = "hsa", limit = c(15, 500))
 
-# Mouse
+# Mouse gene sets
 gene2path_mmu <- gsGetter(type = "KEGG+REACTOME", organism = "mmu")
 ```
 
@@ -80,23 +81,42 @@ msigdb_gs <- gsGetter(type = "H+C2", organism = "hsa",
 
 ### Custom GMT files
 
+`gsGetter()` accepts a path to any GMT-format file via `gmtpath`. The
+built-in `ReadGMT()` helper can also be used directly if you need to
+parse a GMT file without the rest of `gsGetter()`'s logic.
+
 ```{r}
+# Via gsGetter (respects limit=)
 custom <- gsGetter(gmtpath = "my_gene_sets.gmt", limit = c(10, 500))
+
+# Via ReadGMT directly
+gene2path_custom <- ReadGMT("my_gene_sets.gmt", limit = c(10, 500))
 ```
 
 ### Updating cached data
 
-Databases are downloaded once. To refresh from source:
+Gene set databases are downloaded once. To refresh from source:
 
 ```{r}
 # Force re-download of KEGG and Reactome
 gsGetter(type = "KEGG+REACTOME", organism = "hsa", update = TRUE)
+
+# Or call retrieve_gs() directly to pre-populate the cache
+retrieve_gs(type = c("KEGG", "REACTOME", "GO"), organism = "hsa")
 ```
 
 ### Checking cached database versions
 
+`gs_versions()` reads the metadata file recorded after each download and
+returns a data frame showing which version of each database was cached and
+when it was downloaded.
+
 ```{r}
 gs_versions()
+#>   database organism       version  downloaded        source_url
+#> 1     kegg      hsa  Release 113  2025-01-15  https://rest.kegg.jp/...
+#> 2  ensembl      hsa          114  2025-01-15  https://ftp.ensembl.org/...
+#> 3       go      hsa  (fetched..) 2025-01-15  https://ftp.ncbi.nlm.nih.gov/...
 ```
 
 ---
@@ -108,9 +128,16 @@ formats. Built-in mappings (no internet required after first use) cover
 `Symbol`, `Entrez`, `Ensembl`, and `UniProt`. Additional formats are
 available via `biomaRt`.
 
+The function returns a **named character vector** — names are the original
+input identifiers, values are the converted IDs. This makes it easy to
+propagate identifiers through a pipeline without losing track of the
+input→output mapping.
+
 ```{r}
 # Symbol → Entrez (default)
 TransGeneID(c("TP53", "BRCA1", "EGFR"), organism = "hsa")
+#> TP53  BRCA1   EGFR
+#> "7157" "672" "1956"
 
 # Symbol → UniProt
 TransGeneID(c("TP53", "BRCA1"), toType = "uniprot", organism = "hsa")
@@ -118,6 +145,17 @@ TransGeneID(c("TP53", "BRCA1"), toType = "uniprot", organism = "hsa")
 # Entrez → Ensembl
 TransGeneID(c("7157", "672"), fromType = "Entrez", toType = "Ensembl",
             organism = "hsa")
+```
+
+### One-to-many mappings
+
+By default, `unique = TRUE` returns only the first match per input gene.
+Set `unique = FALSE` to get a data frame of all one-to-many mappings:
+
+```{r}
+# Returns a data frame with all Ensembl IDs per Entrez ID
+TransGeneID(c("7157", "672"), fromType = "Entrez", toType = "Ensembl",
+            organism = "hsa", unique = FALSE)
 ```
 
 ### Cross-organism mapping
@@ -131,17 +169,20 @@ TransGeneID("22059", fromType = "Entrez", toType = "Entrez",
             fromOrg = "mmu", toOrg = "hsa")
 ```
 
-The returned vector is named by the input identifiers, making it easy to
-propagate IDs through a pipeline:
+Cross-organism mapping for `Symbol` and `Entrez` uses built-in annotations
+from MGI and NCBI HomoloGene (downloaded via `getOrtAnn()`). For other ID
+types, `biomaRt` is used automatically.
+
+### Updating gene annotations
+
+The underlying annotation files are cached locally. Pass `update = TRUE` to
+re-download from NCBI and Ensembl:
 
 ```{r}
-genes <- c("TP53", "BRCA1", "EGFR", "MYC", "KRAS")
-entrez <- TransGeneID(genes, organism = "hsa")
-# entrez["TP53"]  →  "7157"
+ann <- getGeneAnn("hsa", update = TRUE)
+head(ann$Gene)     # entrez, symbol, ensembl, synonyms, ...
+head(ann$Protein)  # uniprot, symbol, synonyms
 ```
-
-Set `unique = FALSE` to return a data frame of all one-to-many mappings
-rather than the first match per input.
 
 ---
 
@@ -167,15 +208,30 @@ geneList <- setNames(rnorm(300), sample(gene2path$Gene, 300))
 
 The hypergeometric test (`"HGT"`) asks whether a set of genes of interest
 is over-represented in each pathway relative to a background universe.
-The `geneList` values are used to compute a normalised enrichment score
-(`NES`) and `strength` (log~10~ enrichment ratio), but the significance
-test itself only uses the gene *names* (treated as a hit list).
+The gene *names* form the hit list; the numeric values contribute to a
+normalised enrichment score (`NES`) and `strength` (log~10~ enrichment
+ratio) that are appended to the result.
 
 ```{r}
 res_hgt <- runEnrich(geneList, gene2path,
                      method       = "HGT",
                      pvalueCutoff = 0.05)
 head(as.data.frame(res_hgt))
+```
+
+The result data frame contains: `ID`, `Description`, `NES`, `meanVal`,
+`strength`, `pvalue`, `p.adjust`, `GeneRatio`, `BgRatio`, `geneID`
+(Entrez IDs), `geneName` (symbols), and `Count`.
+
+### Over-representation test
+
+`"ORT"` is equivalent to `clusterProfiler::enricher()` with no NES
+annotation:
+
+```{r}
+res_ort <- runEnrich(geneList, gene2path,
+                     method       = "ORT",
+                     pvalueCutoff = 0.05)
 ```
 
 ### GSEA
@@ -195,8 +251,21 @@ If your `geneList` is named by gene symbols rather than Entrez IDs,
 specify `keytype`:
 
 ```{r}
-symbol_list <- setNames(rnorm(100), sample(c("TP53", "MYC", "EGFR", "BRCA1"), 100, replace = TRUE))
+symbol_list <- setNames(rnorm(100),
+                        sample(c("TP53", "MYC", "EGFR", "BRCA1"), 100,
+                               replace = TRUE))
 res <- runEnrich(symbol_list, gene2path, keytype = "Symbol", method = "HGT")
+```
+
+### Custom background universe
+
+By default the background is all genes in `gene2path` combined with the
+input genes. Supply your own universe with the `universe` argument:
+
+```{r}
+bg <- unique(gene2path$Gene)   # all genes in the gene set collection
+res <- runEnrich(geneList, gene2path, method = "HGT",
+                 pvalueCutoff = 0.05, universe = bg)
 ```
 
 ---
@@ -209,7 +278,9 @@ pathways. gsbundle offers two complementary strategies.
 ### DBSCAN clustering
 
 DBSCAN groups pathways by Jaccard similarity of their gene sets. Requires
-the `dbscan` package.
+the `dbscan` package. The key tuning parameter is `eps`: larger values
+merge more pathways into the same cluster (coarser grouping); smaller
+values produce finer grouping.
 
 ```{r}
 # Add a cluster column without removing any rows
@@ -217,7 +288,7 @@ res_clust <- runEnrich(geneList, gene2path, method = "HGT",
                        pvalueCutoff = 0.05,
                        cluster = TRUE, eps = 1.2, minpts = 2)
 
-# Then pick the top pathway per cluster yourself, e.g.:
+# Pick the top pathway per cluster yourself:
 library(dplyr)
 top_per_cluster <- as.data.frame(res_clust) |>
     slice_min(pvalue, n = 1, by = cluster)
@@ -230,8 +301,12 @@ res_filt <- runEnrich(geneList, gene2path, method = "HGT",
                       filter = TRUE, eps = 1.2, minpts = 2)
 ```
 
-Increase `eps` to merge more pathways into the same cluster (less
-granular); decrease it for finer grouping.
+`cluster.dbscan()` can also be called directly on an existing result data
+frame if you want to add clustering after the fact:
+
+```{r}
+clusters <- cluster.dbscan(as.data.frame(res_hgt), eps = 1.2, minpts = 2)
+```
 
 ### Jaccard cutoff filter
 
@@ -283,13 +358,93 @@ getOrg("mmu")     # $org = "mmu",  $pkg = "org.Mm.eg.db"
 ```{r}
 # Gene and protein annotations for human (downloads once, then cached)
 ann <- getGeneAnn("hsa")
-head(ann$Gene)     # entrez, symbol, ensembl, ...
-head(ann$Protein)  # uniprot, symbol, synonyms
+head(ann$Gene)     # columns: entrez, symbol, ensembl, synonyms, ...
+head(ann$Protein)  # columns: uniprot, symbol, synonyms
 
 # Ortholog table: mouse → human
 orth <- getOrtAnn(fromOrg = "mmu", toOrg = "hsa")
 head(orth)
 ```
+
+---
+
+## 6. Configuring the cache directory
+
+All cached files (gene set RDS files, gene annotation files, and the
+`versions.json` metadata record) are stored in a single directory. The
+location is resolved in this priority order:
+
+| Priority | Mechanism | Scope |
+|---|---|---|
+| 1 (highest) | `cache.dir` argument | Single function call |
+| 2 | `options("gsbundle.cache")` | Entire R session |
+| 3 (default) | `tools::R_user_dir("gsbundle", "cache")` | Per-user system default |
+
+The system default is typically:
+
+- **Linux/macOS**: `~/.cache/R/gsbundle/`
+- **Windows**: `%LOCALAPPDATA%\R\Cache\R\gsbundle\`
+
+### Per-call override
+
+Pass `cache.dir` directly to `gsGetter()` or `retrieve_gs()` to redirect
+a single call:
+
+```{r}
+# Read from (and download to) a specific directory for this call only
+gene2path <- gsGetter(type = "KEGG+GOBP", organism = "hsa",
+                      cache.dir = "/data/shared/gsbundle_cache")
+```
+
+### Session-wide option
+
+Set `options("gsbundle.cache")` once at the top of a script and all
+subsequent calls will use that directory:
+
+```{r}
+options(gsbundle.cache = "/data/shared/gsbundle_cache")
+
+gene2path <- gsGetter(type = "KEGG+GOBP", organism = "hsa")
+ann       <- getGeneAnn("hsa")
+orth      <- getOrtAnn("mmu", "hsa")
+gs_versions()
+```
+
+### Persistent default via `.Rprofile`
+
+To apply the setting automatically every time R starts, add the option to
+`~/.Rprofile` (user-wide) or `.Rprofile` in a project directory:
+
+```r
+# ~/.Rprofile  (or project .Rprofile)
+options(gsbundle.cache = "/data/shared/gsbundle_cache")
+```
+
+### Shared / HPC cache
+
+On a computing cluster or shared workstation it is efficient to download
+data once into a shared location that all users or jobs can read:
+
+```{r}
+# --- Step 1: populate the cache (done once, e.g. by a data manager) ---
+options(gsbundle.cache = "/data/shared/gsbundle_cache")
+
+retrieve_gs(type = c("KEGG", "REACTOME", "GO", "CORUM"),
+            organism = "hsa")
+retrieve_gs(type = c("KEGG", "REACTOME", "GO"),
+            organism = "mmu")
+getGeneAnn("hsa")
+getGeneAnn("mmu")
+
+# --- Step 2: point every user/job at the shared cache ---
+# (add to ~/.Rprofile or set at the top of each script)
+options(gsbundle.cache = "/data/shared/gsbundle_cache")
+
+gene2path <- gsGetter(type = "KEGG+GOBP", organism = "hsa")
+```
+
+This avoids redundant downloads and ensures all analyses use the same
+database snapshot.
 
 ---
 
