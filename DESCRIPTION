@@ -1,7 +1,7 @@
 Package: gsbundle
 Type: Package
 Title: Gene Set Retrieval and Gene ID Conversion Utilities
-Version: 0.1.2
+Version: 0.1.3
 Authors@R: c(
     person("Allan", "Lui", role = c("aut", "cre"),
            email = "allan.lui@cruk.cam.ac.uk"),

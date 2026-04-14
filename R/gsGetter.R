@@ -262,7 +262,12 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
     go_url <- "https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz"
     go_version <- .get_last_modified(go_url)
     tmpfile = file.path(.gsbundle_cache(cache.dir), "gene2go.gz")
-    download.file(go_url, destfile = tmpfile, quiet = TRUE)
+    local({
+      old_timeout <- getOption("timeout")
+      on.exit(options(timeout = old_timeout))
+      options(timeout = max(old_timeout, 600))
+      download.file(go_url, destfile = tmpfile, quiet = TRUE, mode = "wb")
+    })
     go <- read.table(gzfile(tmpfile), sep = "\t", header = TRUE,
                      stringsAsFactors = FALSE, comment.char = "", quote = "")
     colnames(go) <- c("tax_id","EntrezID","GO_ID","Evidence","Qualifier","GO_term", "PubMed","Category")
