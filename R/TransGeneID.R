@@ -183,6 +183,11 @@ TransGeneID <- function(genes, fromType="Symbol", toType="Entrez",
 #'
 #' @param org Character, hsa (default), bta, cfa, mmu, ptr, rno, ssc are optional.
 #' @param update Boolean, indicating whether download current annotation.
+#' @param release Optional Ensembl release number (integer). If \code{NULL}
+#'   (default) the latest release is queried automatically.
+#' @param cache.dir Path to a directory used for storing and reading cached
+#'   annotation files. Overrides \code{options("gsbundle.cache")} and the
+#'   default system cache location.
 #' @return A data frame.
 #'
 #' @author Wubing Zhang
@@ -195,11 +200,11 @@ TransGeneID <- function(genes, fromType="Symbol", toType="Entrez",
 #'
 #' @export
 #'
-getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
+getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL, cache.dir = NULL){
   options(stringsAsFactors = FALSE)
   #### Read rds file directly ####
   rds_suffix <- if (!is.null(release)) paste0("_ensembl", release) else ""
-  rdsann = file.path(.gsbundle_cache(),
+  rdsann = file.path(.gsbundle_cache(cache.dir),
                      paste0("GeneID_Annotation_", org, rds_suffix, ".rds"))
   if(file.exists(rdsann) & !update) return(readRDS(rdsann))
 
@@ -207,7 +212,7 @@ getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
   gzfile = paste0(c("Homo_sapiens", "Bos_taurus", "Canis_lupus_familiaris", "Mus_musculus",
                     "Pan_troglodytes", "Rattus_norvegicus", "Sus_scrofa"), ".gene_info.gz")
   names(gzfile) = c("hsa", "bta", "cfa", "mmu", "ptr", "rno", "ssc")
-  locfname <- file.path(.gsbundle_cache(), gzfile[org])
+  locfname <- file.path(.gsbundle_cache(cache.dir), gzfile[org])
   if((!file.exists(locfname)) | update){
     ## Download gene information from NCBI ftp server
     refname <- paste0("https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/", gzfile[org])
@@ -261,7 +266,7 @@ getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
   # }
 
   #### Ensembl gene annotation ####
-  tmpfile = file.path(.gsbundle_cache(), "tmpfile")
+  tmpfile = file.path(.gsbundle_cache(cache.dir), "tmpfile")
   ## Use pinned release if provided, otherwise query REST API for latest
   if (!is.null(release)) {
     version <- as.integer(release)
@@ -330,7 +335,7 @@ getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
   proteome_code = c("up000005640", "UP000009136", "UP000002254",
                     "up000000589", "UP000002277", "UP000002494")
   names(proteome_code) = c("hsa", "bta", "cfa", "mmu", "ptr", "rno")
-  locfname <- file.path(.gsbundle_cache(),
+  locfname <- file.path(.gsbundle_cache(cache.dir),
                         paste0("uniprot_proteome_", proteome_code[org], ".tsv.gz"))
   uniprot_link <- paste0("https://rest.uniprot.org/uniprotkb/stream?compressed=true&fields=accession%2Creviewed%2Cgene_names%2Cxref_geneid%2Cxref_ensembl%2Ccc_alternative_products&format=tsv&query=%28%28proteome%3A",proteome_code[org],"%29%29")
 
@@ -410,7 +415,7 @@ getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
     version    = as.character(version),
     downloaded = format(Sys.time(), "%Y-%m-%d"),
     source_url = paste0("https://ftp.ensembl.org/pub/release-", version, "/tsv/")
-  ))
+  ), cache.dir = cache.dir)
   return(ann)
 }
 
@@ -429,6 +434,9 @@ getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
 #' @param fromOrg Character, hsa (default), bta, cfa, mmu, ptr, rno, ssc are optional.
 #' @param toOrg Character, hsa (default), bta, cfa, mmu, ptr, rno, ssc are optional.
 #' @param update Boolean, indicating whether to re-download annotations from source.
+#' @param cache.dir Path to a directory used for storing and reading cached
+#'   annotation files. Overrides \code{options("gsbundle.cache")} and the
+#'   default system cache location.
 #' @return A data frame.
 #'
 #' @author Wubing Zhang
@@ -441,9 +449,9 @@ getGeneAnn <- function(org = "hsa", update = FALSE, release = NULL){
 #'
 #' @export
 #'
-getOrtAnn <- function(fromOrg = "mmu", toOrg = "hsa", update = FALSE){
+getOrtAnn <- function(fromOrg = "mmu", toOrg = "hsa", update = FALSE, cache.dir = NULL){
   #### Read rds file directly ####
-  rdsann = file.path(.gsbundle_cache(),
+  rdsann = file.path(.gsbundle_cache(cache.dir),
                      paste0("GeneID_Annotation_", fromOrg, "_", toOrg, ".rds"))
   if(file.exists(rdsann) & !update) return(readRDS(rdsann))
 
@@ -456,7 +464,7 @@ getOrtAnn <- function(fromOrg = "mmu", toOrg = "hsa", update = FALSE){
   #### Download data from MGI (mouse-human only) ####
   mgi_ann <- NULL
   if (all(c(fromOrg, toOrg) %in% c("hsa", "mmu"))) {
-    locfname <- file.path(.gsbundle_cache(), "HOM_MouseHumanSequence.rpt.gz")
+    locfname <- file.path(.gsbundle_cache(cache.dir), "HOM_MouseHumanSequence.rpt.gz")
     if((!file.exists(locfname)) | update){
       refname <- "https://www.informatics.jax.org/downloads/reports/HOM_MouseHumanSequence.rpt"
       download.file(refname, locfname, quiet = TRUE)
@@ -475,7 +483,7 @@ getOrtAnn <- function(fromOrg = "mmu", toOrg = "hsa", update = FALSE){
 
   #### Download data from NCBI gene_orthologs ####
   ## HomoloGene was retired Jan 2024; gene_orthologs.gz is the current replacement.
-  locfname <- file.path(.gsbundle_cache(), "gene_orthologs.gz")
+  locfname <- file.path(.gsbundle_cache(cache.dir), "gene_orthologs.gz")
   if((!file.exists(locfname)) | update){
     refname <- "https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_orthologs.gz"
     download.file(refname, locfname, quiet = TRUE)
@@ -495,8 +503,8 @@ getOrtAnn <- function(fromOrg = "mmu", toOrg = "hsa", update = FALSE){
   entrez_pairs = unique(rbind(fwd, rev))
 
   ## Look up symbols via getGeneAnn (uses cache if already downloaded)
-  from_gene = getGeneAnn(fromOrg, update = FALSE)$Gene
-  to_gene   = getGeneAnn(toOrg,   update = FALSE)$Gene
+  from_gene = getGeneAnn(fromOrg, update = FALSE, cache.dir = cache.dir)$Gene
+  to_gene   = getGeneAnn(toOrg,   update = FALSE, cache.dir = cache.dir)$Gene
   from_sym  = stats::setNames(from_gene$symbol, from_gene$entrez)
   to_sym    = stats::setNames(to_gene$symbol,   to_gene$entrez)
 

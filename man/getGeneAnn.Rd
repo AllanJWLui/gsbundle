@@ -5,7 +5,7 @@
 \alias{getGeneAnn}
 \title{Retrieve gene annotations from the NCBI, HNSC, and Uniprot databases.}
 \usage{
-getGeneAnn(org = "hsa", update = FALSE, release = NULL)
+getGeneAnn(org = "hsa", update = FALSE, release = NULL, cache.dir = NULL)
 }
 \arguments{
 \item{org}{Character, hsa (default), bta, cfa, mmu, ptr, rno, ssc are optional.}
@@ -14,6 +14,10 @@ getGeneAnn(org = "hsa", update = FALSE, release = NULL)
 
 \item{release}{Optional Ensembl release number (integer). If \code{NULL}
 (default) the latest release is queried automatically.}
+
+\item{cache.dir}{Path to a directory used for storing and reading cached
+annotation files. Overrides \code{options("gsbundle.cache")} and the
+default system cache location.}
 }
 \value{
 A data frame.

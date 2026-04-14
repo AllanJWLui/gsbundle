@@ -5,7 +5,7 @@
 \alias{getOrtAnn}
 \title{Retrieve reference orthologs annotation.}
 \usage{
-getOrtAnn(fromOrg = "mmu", toOrg = "hsa", update = FALSE)
+getOrtAnn(fromOrg = "mmu", toOrg = "hsa", update = FALSE, cache.dir = NULL)
 }
 \arguments{
 \item{fromOrg}{Character, hsa (default), bta, cfa, mmu, ptr, rno, ssc are optional.}
@@ -13,6 +13,10 @@ getOrtAnn(fromOrg = "mmu", toOrg = "hsa", update = FALSE)
 \item{toOrg}{Character, hsa (default), bta, cfa, mmu, ptr, rno, ssc are optional.}
 
 \item{update}{Boolean, indicating whether to re-download annotations from source.}
+
+\item{cache.dir}{Path to a directory used for storing and reading cached
+annotation files. Overrides \code{options("gsbundle.cache")} and the
+default system cache location.}
 }
 \value{
 A data frame with columns \code{{fromOrg}_symbol}, \code{{fromOrg}_entrez},

@@ -9,10 +9,10 @@
 }
 
 ## Internal helper: save database version metadata to versions.json
-.save_db_meta <- function(db, organism, meta) {
+.save_db_meta <- function(db, organism, meta, cache.dir = NULL) {
   if (!requireNamespace("jsonlite", quietly = TRUE))
     stop("Package 'jsonlite' is required. Please install it.", call. = FALSE)
-  path <- file.path(.gsbundle_cache(), "versions.json")
+  path <- file.path(.gsbundle_cache(cache.dir), "versions.json")
   existing <- if (file.exists(path)) jsonlite::fromJSON(path, simplifyVector = FALSE) else list()
   key <- paste0(db, "_", organism)
   existing[[key]] <- meta
@@ -38,6 +38,11 @@
 #' downloaded and cached locally by \code{\link{retrieve_gs}} and
 #' \code{\link{getGeneAnn}}.
 #'
+#' @param cache.dir Path to the cache directory to read \code{versions.json}
+#'   from. Overrides \code{options("gsbundle.cache")} and the default system
+#'   cache. Should match the \code{cache.dir} used when the data were
+#'   downloaded.
+#'
 #' @return A data frame with columns \code{database}, \code{organism},
 #'   \code{version}, \code{downloaded}, and \code{source_url}. Returns an
 #'   empty data frame if no metadata has been recorded yet.
@@ -48,13 +53,13 @@
 #' }
 #'
 #' @export
-gs_versions <- function() {
+gs_versions <- function(cache.dir = NULL) {
   if (!requireNamespace("jsonlite", quietly = TRUE))
     stop("Package 'jsonlite' is required. Please install it.", call. = FALSE)
   empty <- data.frame(database = character(), organism = character(),
                       version = character(), downloaded = character(),
                       source_url = character(), stringsAsFactors = FALSE)
-  path <- file.path(.gsbundle_cache(), "versions.json")
+  path <- file.path(.gsbundle_cache(cache.dir), "versions.json")
   if (!file.exists(path)) return(empty)
   raw <- jsonlite::fromJSON(path, simplifyVector = FALSE)
   if (length(raw) == 0) return(empty)

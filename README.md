@@ -159,8 +159,9 @@ test), `"GSEA"` (gene set enrichment analysis).
 All downloaded annotations are stored in a local cache directory and reused
 on subsequent calls. The cache location is resolved in this priority order:
 
-1. **`cache.dir` argument** — passed directly to `gsGetter()` or
-   `retrieve_gs()` for that call only
+1. **`cache.dir` argument** — passed directly to `gsGetter()`,
+   `retrieve_gs()`, `getGeneAnn()`, `getOrtAnn()`, or `gs_versions()` for
+   that call only
 2. **`options("gsbundle.cache")`** — session-wide default; set once and all
    functions pick it up automatically
 3. **System default** — `tools::R_user_dir("gsbundle", "cache")`, typically
@@ -175,6 +176,9 @@ on subsequent calls. The cache location is resolved in this priority order:
 # Download to and read from a specific folder for this call only
 gsGetter(type = "KEGG+GOBP", organism = "hsa",
          cache.dir = "/data/shared/gsbundle_cache")
+getGeneAnn("hsa", cache.dir = "/data/shared/gsbundle_cache")
+getOrtAnn("mmu", "hsa", cache.dir = "/data/shared/gsbundle_cache")
+gs_versions(cache.dir = "/data/shared/gsbundle_cache")
 ```
 
 **Session-wide option** (recommended for interactive use):
@@ -203,7 +207,7 @@ pre-built cache directory so that data only needs to be downloaded once:
 # Populate the shared cache once (e.g. by a data manager)
 retrieve_gs(type = c("KEGG", "REACTOME", "GO"), organism = "hsa",
             cache.dir = "/data/shared/gsbundle_cache")
-getGeneAnn("hsa")  # uses options("gsbundle.cache") if set
+getGeneAnn("hsa", cache.dir = "/data/shared/gsbundle_cache")
 
 # Every user then reads from the same location
 options(gsbundle.cache = "/data/shared/gsbundle_cache")

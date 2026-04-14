@@ -164,7 +164,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
       version    = kegg_version,
       downloaded = format(Sys.time(), "%Y-%m-%d"),
       source_url = paste0("https://rest.kegg.jp/link/pathway/", organism)
-    ))
+    ), cache.dir = cache.dir)
   }
   if("CORUM" %in% type){ ## Process genesets from CORUM
     message(format(Sys.time(), " Downloading genesets from CORUM ..."))
@@ -231,7 +231,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
       version    = corum_version,
       downloaded = format(Sys.time(), "%Y-%m-%d"),
       source_url = paste0(api_base, "/public/file/download_current_file")
-    ))
+    ), cache.dir = cache.dir)
   }
   if("REACTOME" %in% type){ ## Process genesets from REACTOME
     if (!is.null(release))
@@ -252,7 +252,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
       version    = reactome_version,
       downloaded = format(Sys.time(), "%Y-%m-%d"),
       source_url = reactome_url
-    ))
+    ), cache.dir = cache.dir)
   }
   ## Process genesets from Gene ontology
   if(any(grepl("^GO", type))){
@@ -280,7 +280,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
       version    = go_version,
       downloaded = format(Sys.time(), "%Y-%m-%d"),
       source_url = go_url
-    ))
+    ), cache.dir = cache.dir)
   }
   if("MSIGDB" %in% type){ ## Process genesets from MSigDB
     if(is.null(msigdb.path)){
@@ -308,7 +308,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
       version    = as.character(file.mtime(msigdb.path)),
       downloaded = format(Sys.time(), "%Y-%m-%d"),
       source_url = msigdb.path
-    ))
+    ), cache.dir = cache.dir)
   }
 
 

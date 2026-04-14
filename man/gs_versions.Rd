@@ -4,7 +4,13 @@
 \alias{gs_versions}
 \title{Retrieve recorded database version metadata}
 \usage{
-gs_versions()
+gs_versions(cache.dir = NULL)
+}
+\arguments{
+\item{cache.dir}{Path to the cache directory to read \code{versions.json}
+from. Overrides \code{options("gsbundle.cache")} and the default system
+cache. Should match the \code{cache.dir} used when the data were
+downloaded.}
 }
 \value{
 A data frame with columns \code{database}, \code{organism},

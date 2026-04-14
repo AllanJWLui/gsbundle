@@ -388,13 +388,16 @@ The system default is typically:
 
 ### Per-call override
 
-Pass `cache.dir` directly to `gsGetter()` or `retrieve_gs()` to redirect
-a single call:
+Pass `cache.dir` directly to any of `gsGetter()`, `retrieve_gs()`,
+`getGeneAnn()`, `getOrtAnn()`, or `gs_versions()` to redirect a single call:
 
 ```{r}
 # Read from (and download to) a specific directory for this call only
 gene2path <- gsGetter(type = "KEGG+GOBP", organism = "hsa",
                       cache.dir = "/data/shared/gsbundle_cache")
+ann  <- getGeneAnn("hsa",        cache.dir = "/data/shared/gsbundle_cache")
+orth <- getOrtAnn("mmu", "hsa",  cache.dir = "/data/shared/gsbundle_cache")
+gs_versions(cache.dir = "/data/shared/gsbundle_cache")
 ```
 
 ### Session-wide option
