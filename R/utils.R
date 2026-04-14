@@ -1,6 +1,9 @@
-## Internal helper: return (and create) the gsbundle user cache directory
-.gsbundle_cache <- function() {
-  d <- tools::R_user_dir("gsbundle", which = "cache")
+## Internal helper: return (and create) the gsbundle cache directory.
+## Resolution order: path argument > options("gsbundle.cache") > system default.
+.gsbundle_cache <- function(path = NULL) {
+  d <- if (!is.null(path)) path else
+       if (!is.null(getOption("gsbundle.cache"))) getOption("gsbundle.cache") else
+       tools::R_user_dir("gsbundle", which = "cache")
   dir.create(d, recursive = TRUE, showWarnings = FALSE)
   d
 }
@@ -177,6 +180,9 @@ ReadGMT <- function(gmtpath, limit = c(1, Inf)) {
                stringsAsFactors = FALSE)
   })
   rows <- rows[!sapply(rows, is.null)]
+  if (length(rows) == 0)
+    return(data.frame(Gene = character(), PathwayID = character(),
+                      PathwayName = character(), stringsAsFactors = FALSE))
   gene2path <- do.call(rbind, rows)
   ## apply size filter
   count_gene <- table(gene2path$PathwayID)

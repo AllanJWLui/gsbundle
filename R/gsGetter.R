@@ -16,6 +16,10 @@
 #' @param organism 'hsa' or 'mmu'.
 #' @param update Boolean, indicating whether update the gene sets from source database.
 #' @param msigdb.path Path to msigdb sqlite file. Must be provided if `update` = `TRUE` and "MSIGDB" is specified in `type`
+#' @param cache.dir Path to a directory used for storing and reading cached gene
+#'   set files. Overrides \code{options("gsbundle.cache")} and the default
+#'   system cache location. Useful for pointing multiple sessions at a shared
+#'   pre-built cache.
 #'
 #' @return A three-column data frame.
 #'
@@ -29,7 +33,8 @@
 #' @export
 #'
 gsGetter <- function(gmtpath = NULL, type = "All", limit = c(0, Inf),
-                     organism = 'hsa', update = FALSE, msigdb.path = NULL){
+                     organism = 'hsa', update = FALSE, msigdb.path = NULL,
+                     cache.dir = NULL){
   ## Normalize type
   type = toupper(unlist(strsplit(type, "\\+")))
   if("ALL" %in% type) type = c("PATHWAY", "GO", "COMPLEX", "MSIGDB")
@@ -45,7 +50,7 @@ gsGetter <- function(gmtpath = NULL, type = "All", limit = c(0, Inf),
   # type[type=="GOMF"] <- "C5_GO_MF"
 
   ## Update genesets
-  if(update) retrieve_gs(organism=organism, type = type, msigdb.path = msigdb.path)
+  if(update) retrieve_gs(organism=organism, type = type, msigdb.path = msigdb.path, cache.dir = cache.dir)
 
   ## read GMT files
   if(!is.null(gmtpath)){
@@ -53,33 +58,33 @@ gsGetter <- function(gmtpath = NULL, type = "All", limit = c(0, Inf),
   }else{
     gene2path = data.frame()
     if("KEGG" %in% type){
-      gsfile = file.path(.gsbundle_cache(),
+      gsfile = file.path(.gsbundle_cache(cache.dir),
                          paste0("kegg.all.entrez.", organism, ".rds"))
-      if(!file.exists(gsfile)) retrieve_gs(type = "KEGG", organism=organism)
+      if(!file.exists(gsfile)) retrieve_gs(type = "KEGG", organism=organism, cache.dir = cache.dir)
       tmp = readRDS(gsfile)
       colnames(tmp) = c("ENTREZID", "PathwayID", "PathwayName")
       gene2path = rbind(gene2path, tmp)
     }
     if("REACTOME" %in% type){
-      gsfile = file.path(.gsbundle_cache(),
+      gsfile = file.path(.gsbundle_cache(cache.dir),
                          paste0("reactome.all.entrez.", organism, ".rds"))
-      if(!file.exists(gsfile)) retrieve_gs(type = "REACTOME", organism=organism)
+      if(!file.exists(gsfile)) retrieve_gs(type = "REACTOME", organism=organism, cache.dir = cache.dir)
       tmp = readRDS(gsfile)
       colnames(tmp) = c("ENTREZID", "PathwayID", "PathwayName")
       gene2path = rbind(gene2path, tmp)
     }
     if("CORUM" %in% type){
-      gsfile = file.path(.gsbundle_cache(),
+      gsfile = file.path(.gsbundle_cache(cache.dir),
                          paste0("corum.all.entrez.", organism, ".rds"))
-      if(!file.exists(gsfile)) retrieve_gs(type = "CORUM", organism=organism)
+      if(!file.exists(gsfile)) retrieve_gs(type = "CORUM", organism=organism, cache.dir = cache.dir)
       tmp = readRDS(gsfile)
       colnames(tmp) = c("ENTREZID", "PathwayID", "PathwayName")
       gene2path = rbind(gene2path, tmp)
     }
     if(any(grepl("^GO", type))){
-      gsfile = file.path(.gsbundle_cache(),
+      gsfile = file.path(.gsbundle_cache(cache.dir),
                          paste0("go.all.entrez.", organism, ".rds"))
-      if(!file.exists(gsfile)) retrieve_gs(type = "GO", organism=organism)
+      if(!file.exists(gsfile)) retrieve_gs(type = "GO", organism=organism, cache.dir = cache.dir)
       go = readRDS(gsfile)
       go = go[go$Category%in%gsub("GO", "", type), 1:3]
       colnames(go) = c("ENTREZID", "PathwayID", "PathwayName")
@@ -87,9 +92,9 @@ gsGetter <- function(gmtpath = NULL, type = "All", limit = c(0, Inf),
     }
     othertypes = setdiff(type, c("KEGG", "CORUM", "REACTOME", "GOBP", "GOMF", "GOCC"))
     if(length(othertypes)>0){
-      gsfile = file.path(.gsbundle_cache(),
+      gsfile = file.path(.gsbundle_cache(cache.dir),
                          paste0("msigdb.all.entrez.", organism, ".rds"))
-      if(!file.exists(gsfile)) retrieve_gs(type = "MSIGDB", organism=organism, msigdb.path = msigdb.path)
+      if(!file.exists(gsfile)) retrieve_gs(type = "MSIGDB", organism=organism, msigdb.path = msigdb.path, cache.dir = cache.dir)
       m = readRDS(gsfile)
       colnames(m) = c("Collection","ENTREZID", "PathwayID", "PathwayName")
       m <- m %>%
@@ -117,6 +122,8 @@ gsGetter <- function(gmtpath = NULL, type = "All", limit = c(0, Inf),
 #' @param type A vector of databases, such as KEGG, REACTOME, CORUM, GO, MSIGDB
 #' @param organism 'hsa' or 'mmu'.
 #' @param msigdb.path Path to msigdb sqlite file. Must be provided if `MSIGDB` is specified in `type`
+#' @param cache.dir Path to a directory for storing cached gene set files.
+#'   Overrides \code{options("gsbundle.cache")} and the default system cache.
 #'
 #' @return save data to local library.
 #'
@@ -125,7 +132,7 @@ gsGetter <- function(gmtpath = NULL, type = "All", limit = c(0, Inf),
 #' @import dplyr
 #' @export
 #'
-retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), organism = 'hsa', msigdb.path = NULL, release = NULL){
+retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), organism = 'hsa', msigdb.path = NULL, release = NULL, cache.dir = NULL){
   options(stringsAsFactors = FALSE)
 
   if("KEGG" %in% type){ ## Process genesets from KEGG
@@ -144,7 +151,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
     pathways$PathwayName=gsub(" - .*", "", pathways$PathwayName)
     rownames(pathways) = pathways$PathwayID
     gene2path$PathwayName = pathways[gene2path$PathwayID, "PathwayName"]
-    locfname = file.path(.gsbundle_cache(),
+    locfname = file.path(.gsbundle_cache(cache.dir),
                          paste0("kegg.all.entrez.", organism, ".rds"))
     gene2path$PathwayID = paste0("KEGG_", gene2path$PathwayID)
     saveRDS(gene2path, locfname)
@@ -162,12 +169,12 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
   if("CORUM" %in% type){ ## Process genesets from CORUM
     message(format(Sys.time(), " Downloading genesets from CORUM ..."))
     api_base <- "https://mips.helmholtz-muenchen.de/fastapi-corum"
-    locfname  <- file.path(.gsbundle_cache(), "allComplexes_current.txt")
+    locfname  <- file.path(.gsbundle_cache(cache.dir), "allComplexes_current.txt")
 
     if (!is.null(release)) {
       ## Archived release — server returns a zip containing the txt
       corum_version <- as.character(release)
-      zip_tmp <- file.path(.gsbundle_cache(),
+      zip_tmp <- file.path(.gsbundle_cache(cache.dir),
                            paste0("corum_v", corum_version, ".zip"))
       download.file(
         paste0(api_base, "/public/file/download_archived_file?version=", corum_version),
@@ -217,7 +224,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
     gene2corum$EntrezID <- TransGeneID(gene2corum$EntrezID, "Symbol",
                                        "Entrez", organism = organism)
     gene2corum <- na.omit(gene2corum)
-    rdsname <- file.path(.gsbundle_cache(),
+    rdsname <- file.path(.gsbundle_cache(cache.dir),
                          paste0("corum.all.entrez.", organism, ".rds"))
     saveRDS(gene2corum, rdsname)
     .save_db_meta("corum", organism, list(
@@ -238,7 +245,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
     gene2path = gene2path[grepl(organism, gene2path$PathwayID, ignore.case = TRUE), ]
     gene2path = gene2path[, c(1,2,4)]
     gene2path$PathwayID = gsub(paste0("R-", toupper(organism), "-"), "REACTOME_", gene2path$PathwayID)
-    locfname = file.path(.gsbundle_cache(),
+    locfname = file.path(.gsbundle_cache(cache.dir),
                          paste0("reactome.all.entrez.", organism, ".rds"))
     saveRDS(gene2path, locfname)
     .save_db_meta("reactome", organism, list(
@@ -254,7 +261,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
     message(format(Sys.time(), " Downloading genesets from Gene Ontology ..."))
     go_url <- "https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz"
     go_version <- .get_last_modified(go_url)
-    tmpfile = file.path(.gsbundle_cache(), "gene2go.gz")
+    tmpfile = file.path(.gsbundle_cache(cache.dir), "gene2go.gz")
     download.file(go_url, destfile = tmpfile, quiet = TRUE)
     go <- read.table(gzfile(tmpfile), sep = "\t", header = TRUE,
                      stringsAsFactors = FALSE, comment.char = "", quote = "")
@@ -266,7 +273,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
     go$Category[go$Category=="Component"] = "CC"
     go$Category[go$Category=="Function"] = "MF"
     go$EntrezID = as.character(go$EntrezID)
-    locfname = file.path(.gsbundle_cache(),
+    locfname = file.path(.gsbundle_cache(cache.dir),
                          paste0("go.all.entrez.", organism, ".rds"))
     saveRDS(go, locfname)
     .save_db_meta("go", organism, list(
@@ -294,7 +301,7 @@ retrieve_gs <- function(type = c("KEGG", "REACTOME", "CORUM", "GO","MSIGDB"), or
                             GeneSetID = msigdb.df$standard_name,
                             GeneSetName = msigdb.df$standard_name)
     msigdb.df$Collection <- gsub(":","_",msigdb.df$Collection)
-    locfname = file.path(.gsbundle_cache(),
+    locfname = file.path(.gsbundle_cache(cache.dir),
                          paste0("msigdb.all.entrez.", organism, ".rds"))
     saveRDS(msigdb.df, locfname)
     .save_db_meta("msigdb", organism, list(
